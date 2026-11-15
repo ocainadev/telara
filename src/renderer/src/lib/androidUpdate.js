@@ -8,6 +8,10 @@ const ApkUpdate = registerPlugin('ApkUpdate')
 // VITE_UPDATE_API only exists to test the flow against a local mock of the GitHub response.
 const API_URL = import.meta.env.VITE_UPDATE_API || 'https://api.github.com/repos/ocainadev/telara/releases/latest'
 
+// Shown when the check fails. On TV boxes the usual cause is a wrong date: the secure connection
+// to GitHub is then refused.
+const CHECK_FAIL = 'Não foi possível verificar atualizações. Confira a data e a hora do aparelho e a conexão com a internet.'
+
 const parse = (v) => String(v).replace(/^v/i, '').split('-')[0].split('.').map((n) => parseInt(n, 10) || 0)
 
 function isNewer(latest, current) {
@@ -36,14 +40,14 @@ export const androidUpdater = {
     try {
       const res = await fetch(API_URL, { headers: { Accept: 'application/vnd.github+json' } })
       if (res.status === 404) return { ok: true, current, latest: current, hasUpdate: false }
-      if (!res.ok) return { ok: false, current, error: `GitHub respondeu ${res.status}.` }
+      if (!res.ok) return { ok: false, current, error: `${CHECK_FAIL} (GitHub respondeu ${res.status})` }
       const release = await res.json()
       const latest = String(release.tag_name).replace(/^v/i, '')
       const apk = (release.assets || []).find((a) => a.name.toLowerCase().endsWith('.apk'))
       if (!isNewer(latest, current) || !apk) return { ok: true, current, latest, hasUpdate: false }
       return { ok: true, current, latest, hasUpdate: true, mode: 'apk', downloadUrl: apk.browser_download_url }
     } catch {
-      return { ok: false, current, error: 'Não foi possível consultar o GitHub.' }
+      return { ok: false, current, error: CHECK_FAIL }
     }
   },
   async download(url) {

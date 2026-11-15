@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { deleteProfile, listProfiles } from '../lib/store'
 import { forgetSource } from '../lib/source'
-import { showUpdate, useUpdate } from '../lib/updates'
+import { checkForUpdates, showUpdate, useUpdate } from '../lib/updates'
 import { getAppVersion } from '../lib/version'
 import { isTvMode, useInitialFocus } from '../lib/tv'
 import TvCalibration from '../components/TvCalibration'
@@ -65,7 +65,16 @@ export default function Profiles() {
 
       {(version || newVersion || tv) && (
         <p className="app-version muted">
-          {version && <span>v{version}</span>}
+          {version && (
+            <button
+              className="version-check"
+              title="Verificar atualizações"
+              aria-label={`Versão ${version}. Verificar atualizações`}
+              onClick={() => checkForUpdates({ manual: true })}
+            >
+              v{version}
+            </button>
+          )}
           {newVersion && (
             <button
               className="version-update"

@@ -82,6 +82,9 @@ input:focus { border-color: var(--accent); }
   color: var(--accent-2); transition: background .15s;
 }
 .version-update:hover { background: var(--panel-2); }
+.version-check { background: none; border: 0; padding: 4px 8px; border-radius: 6px; color: inherit; font: inherit; cursor: pointer; }
+.version-check:hover { background: var(--panel-2); }
+.version-check:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 .version-update:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 .tv .version-update { width: 44px; height: 44px; }
 .brand-logo.large { width: 120px; height: 120px; margin: 0 0 4px; }

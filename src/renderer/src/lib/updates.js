@@ -48,7 +48,8 @@ export async function checkForUpdates({ manual = false } = {}) {
     set({ dismissed: false, message: '' })
     return
   }
-  set({ status: 'checking', manual, message: '' })
+  set({ status: 'checking', manual, message: '', dismissed: manual ? false : state.dismissed })
+  lastCheck = Date.now()
   const result = await backend.check()
   if (!result.ok) return set({ status: 'error', message: result.error })
   if (!result.hasUpdate) return set({ status: 'latest', info: result })
@@ -75,11 +76,20 @@ export const showUpdate = () => set({ dismissed: false })
 
 const FIRST_CHECK_MS = 5000
 const RECHECK_MS = 6 * 60 * 60 * 1000
+// TVs and phones keep the app in memory for days: coming back to it checks again after this long.
+const RESUME_CHECK_MS = 30 * 60 * 1000
 let started = false
+let lastCheck = 0
 
 export function startAutoCheck() {
   if (!backend || started) return
   started = true
   setTimeout(() => checkForUpdates(), FIRST_CHECK_MS)
   setInterval(() => checkForUpdates(), RECHECK_MS)
+  const onReturn = () => {
+    if (document.visibilityState === 'visible' && Date.now() - lastCheck > RESUME_CHECK_MS) checkForUpdates()
+  }
+  document.addEventListener('visibilitychange', onReturn)
+  // Capacitor (Android) also fires `resume` on the document when the app comes back.
+  document.addEventListener('resume', onReturn)
 }

@@ -29,7 +29,17 @@ export default function UpdateBanner() {
         <button className="btn ghost small" onClick={dismissUpdate}>Depois</button>
       </>
     )
-  } else if (u.status === 'error' && u.manual) {
+  } else if (u.status === 'latest' && u.manual) {
+    content = (
+      <>
+        <span>Você já está na versão mais recente ({u.info?.current}).</span>
+        <button className="btn ghost small" onClick={dismissUpdate}>Fechar</button>
+      </>
+    )
+  } else if (u.status === 'checking' && u.manual) {
+    content = <span>Verificando atualizações…</span>
+  } else if (u.status === 'error') {
+    // Failed checks are shown too: a silent failure leaves the user wondering (wrong clock on TV boxes).
     content = (
       <>
         <span>{u.message}</span>
