@@ -191,19 +191,26 @@ function installMac() {
     `#!/bin/sh
 while kill -0 "$PID" 2>/dev/null; do sleep 0.3; done
 MNT=$(mktemp -d /tmp/iptv-update-mnt.XXXXXX)
+NEWTARGET="$TARGET"
 if hdiutil attach -nobrowse -noverify -quiet -mountpoint "$MNT" "$DMG"; then
   SRC=$(ls -d "$MNT"/*.app | head -1)
-  rm -rf "$TARGET.new" "$TARGET.old"
-  if [ -n "$SRC" ] && ditto "$SRC" "$TARGET.new"; then
-    mv "$TARGET" "$TARGET.old" && mv "$TARGET.new" "$TARGET" && rm -rf "$TARGET.old"
+  if [ -n "$SRC" ]; then
+    # The new app may have another name (the app was renamed): install it under its own name.
+    DEST="$(dirname "$TARGET")/$(basename "$SRC")"
+    rm -rf "$DEST.new" "$TARGET.old"
+    if ditto "$SRC" "$DEST.new"; then
+      mv "$TARGET" "$TARGET.old"
+      if [ "$DEST" != "$TARGET" ]; then rm -rf "$DEST"; fi
+      if mv "$DEST.new" "$DEST"; then NEWTARGET="$DEST"; rm -rf "$TARGET.old"; else mv "$TARGET.old" "$TARGET"; fi
+    fi
+    rm -rf "$DEST.new"
   fi
-  rm -rf "$TARGET.new"
   hdiutil detach -quiet "$MNT"
 fi
 rmdir "$MNT" 2>/dev/null
-xattr -dr com.apple.quarantine "$TARGET" 2>/dev/null
+xattr -dr com.apple.quarantine "$NEWTARGET" 2>/dev/null
 rm -f "$DMG"
-open "$TARGET"
+open "$NEWTARGET"
 `,
     { mode: 0o700 }
   )

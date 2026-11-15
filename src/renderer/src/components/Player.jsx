@@ -108,6 +108,20 @@ export default function Player({ url, fallbackUrl, isLive = false, startAt = 0, 
   const resumeAtRef = useRef(null)
   const reconnectPlayRef = useRef(false)
   const autoReconnects = useRef(0)
+  // Current hold of a seek key: { dir, start, last }.
+  const seekHold = useRef(null)
+  // Seconds to jump for this key event (negative = back), or 0 to drop a too-fast repeat.
+  const seekStep = (dir, e) => {
+    const now = Date.now()
+    let h = seekHold.current
+    if (!e?.repeat || !h || h.dir !== dir || now - h.last > 600) h = seekHold.current = { dir, start: now, last: 0 }
+    if (h.last && now - h.last < SEEK_REPEAT_MS) return 0
+    h.last = now
+    const held = now - h.start
+    let step = SEEK_HOLD_STEPS[0][1]
+    for (const [after, seconds] of SEEK_HOLD_STEPS) if (held >= after) step = seconds
+    return step * dir
+  }
   const errorRetries = useRef(0)
   const everPlayedRef = useRef(false)
   const lastPosRef = useRef(0)
@@ -568,7 +582,11 @@ export default function Player({ url, fallbackUrl, isLive = false, startAt = 0, 
       if (isNative) {
         const { position, duration } = exo.current
         if (isLive || duration <= 0) return
-        NativePlayer.seekTo({ position: Math.min(duration, Math.max(0, position + delta)) })
+        const target = Math.min(duration, Math.max(0, position + delta))
+        NativePlayer.seekTo({ position: target })
+        // The next report from the player is up to 500 ms away: count from the new spot, or a
+        // held key would keep jumping from the old one.
+        exo.current.position = target
       } else {
         if (isLive || !isFinite(video.duration)) return
         video.currentTime = Math.min(video.duration, Math.max(0, video.currentTime + delta))
@@ -594,8 +612,13 @@ export default function Player({ url, fallbackUrl, isLive = false, startAt = 0, 
       setBarFocus(true)
       containerRef.current?.querySelector('.control-bar button')?.focus()
     } else if (hasTracks && (key === 'ArrowUp' || key === 'ContextMenu')) setMenuOpen(true)
-    else if (nativeFs && (key === 'ArrowRight' || key === 'MediaFastForward')) seek(10)
-    else if (nativeFs && (key === 'ArrowLeft' || key === 'MediaRewind')) seek(-10)
+    else if (nativeFs && (key === 'ArrowRight' || key === 'MediaFastForward')) {
+      const d = seekStep(1, e)
+      if (d) seek(d)
+    } else if (nativeFs && (key === 'ArrowLeft' || key === 'MediaRewind')) {
+      const d = seekStep(-1, e)
+      if (d) seek(d)
+    }
     else return
     e.preventDefault()
     e.stopPropagation()
@@ -616,8 +639,10 @@ export default function Player({ url, fallbackUrl, isLive = false, startAt = 0, 
       else if (key === 'p' && canPip && !tv) togglePip()
       else if (!isNative && !tv && key === 'm') setVolume(media.volume, !media.muted)
       else if (!isNative && !tv && key === ' ' && !e.target.closest?.('button')) togglePlay()
-      else if (!isNative && !tv && key === 'arrowright') skip(10)
-      else if (!isNative && !tv && key === 'arrowleft') skip(-10)
+      else if (!isNative && !tv && (key === 'arrowright' || key === 'arrowleft')) {
+        const d = seekStep(key === 'arrowright' ? 1 : -1, e)
+        if (d) skip(d)
+      }
       else return
       e.preventDefault()
     }
@@ -720,7 +745,9 @@ export default function Player({ url, fallbackUrl, isLive = false, startAt = 0, 
   }
   const skip = (delta) => {
     if (isLive || media.duration <= 0) return
-    seekTo(Math.min(media.duration, Math.max(0, media.position + delta)))
+    // Read the live position: repeated jumps can come before React has re-rendered.
+    const now = isNative ? exo.current.position : (videoRef.current?.currentTime ?? media.position)
+    seekTo(Math.min(media.duration, Math.max(0, now + delta)))
     feedback(`${delta > 0 ? '⏩' : '⏪'} ${Math.abs(delta)}s`)
   }
   const setVolume = (volume, muted) => {
@@ -942,6 +969,10 @@ const formatTime = (seconds) => {
 }
 const VIEW_KEY = 'player:view'
 const DOUBLE_TAP_SKIP = 10 // seconds
+// Holding a seek key (key repeat, remote or keyboard) jumps further the longer it is held:
+// [held for ms, seconds per jump]. Repeats closer than SEEK_REPEAT_MS apart are dropped.
+const SEEK_HOLD_STEPS = [[0, 10], [1500, 30], [3500, 60], [6000, 120]]
+const SEEK_REPEAT_MS = 220
 
 const nextMode = (id) => FIT_MODES[(FIT_MODES.findIndex((m) => m.id === id) + 1) % FIT_MODES.length].id
 const clampZoom = (z) => Math.min(2, Math.max(1, Math.round(z * 100) / 100))
